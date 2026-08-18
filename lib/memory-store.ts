@@ -22,6 +22,8 @@ export class MemoryStore implements Store {
   private packages = new Map<string, Package>();
   private scents: Scent[] = [];
   private events: FloorEvent[] = [];
+  private loops = new Map<string, Set<string>>();
+  private recall = new Map<string, boolean>();
   private chain: Promise<unknown> = Promise.resolve();
 
   private lock<T>(fn: () => T | Promise<T>): Promise<T> {
@@ -88,8 +90,33 @@ export class MemoryStore implements Store {
       wave: 1,
       store: "memory",
       counts: await this.counts(warehouseId),
-      recallEnabled: recallEnabled(),
+      recallEnabled:
+        process.env.VERCEL === "1" ? await this.getRecallFlag(warehouseId) : recallEnabled(),
     };
+  }
+
+  async listPickerLoops(warehouseId: string): Promise<string[]> {
+    return [...(this.loops.get(warehouseId) ?? [])].sort();
+  }
+
+  async addPickerLoops(warehouseId: string, ids: string[]): Promise<void> {
+    const set = this.loops.get(warehouseId) ?? new Set<string>();
+    for (const id of ids) set.add(id);
+    this.loops.set(warehouseId, set);
+  }
+
+  async removePickerLoops(warehouseId: string, ids: string[]): Promise<void> {
+    const set = this.loops.get(warehouseId);
+    if (!set) return;
+    for (const id of ids) set.delete(id);
+  }
+
+  async setRecallFlag(warehouseId: string, on: boolean): Promise<void> {
+    this.recall.set(warehouseId, on);
+  }
+
+  async getRecallFlag(warehouseId: string): Promise<boolean> {
+    return this.recall.get(warehouseId) !== false;
   }
 
   async counts(warehouseId: string): Promise<FloorCounts> {
@@ -281,6 +308,8 @@ export class MemoryStore implements Store {
       }
       this.scents = this.scents.filter((s) => s.warehouse_id !== warehouseId);
       this.events = this.events.filter((e) => e.warehouse_id !== warehouseId);
+      this.loops.delete(warehouseId);
+      this.recall.delete(warehouseId);
     });
   }
 }

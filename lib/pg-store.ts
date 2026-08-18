@@ -128,7 +128,70 @@ function mapEvent(r: Record<string, unknown>): FloorEvent {
 export class CockroachStore implements Store {
   kind = "cockroach" as const;
 
+  async ensureRuntimeTables(): Promise<void> {
+    const p = getPool();
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS picker_loops (
+        warehouse_id STRING NOT NULL,
+        picker_id STRING NOT NULL,
+        PRIMARY KEY (warehouse_id, picker_id)
+      )`);
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS floor_runtime (
+        warehouse_id STRING PRIMARY KEY,
+        recall_enabled BOOL NOT NULL DEFAULT true
+      )`);
+  }
+
+  async listPickerLoops(warehouseId: string): Promise<string[]> {
+    await this.ensureRuntimeTables();
+    const r = await getPool().query(
+      "SELECT picker_id FROM picker_loops WHERE warehouse_id = $1 ORDER BY picker_id",
+      [warehouseId],
+    );
+    return r.rows.map((row) => String(row.picker_id));
+  }
+
+  async addPickerLoops(warehouseId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.ensureRuntimeTables();
+    const values = ids.map((_, i) => `($1, $${i + 2})`).join(",");
+    await getPool().query(
+      `INSERT INTO picker_loops (warehouse_id, picker_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+      [warehouseId, ...ids],
+    );
+  }
+
+  async removePickerLoops(warehouseId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.ensureRuntimeTables();
+    await getPool().query(
+      `DELETE FROM picker_loops WHERE warehouse_id = $1 AND picker_id = ANY($2::STRING[])`,
+      [warehouseId, ids],
+    );
+  }
+
+  async setRecallFlag(warehouseId: string, on: boolean): Promise<void> {
+    await this.ensureRuntimeTables();
+    await getPool().query(
+      `INSERT INTO floor_runtime (warehouse_id, recall_enabled) VALUES ($1, $2)
+       ON CONFLICT (warehouse_id) DO UPDATE SET recall_enabled = EXCLUDED.recall_enabled`,
+      [warehouseId, on],
+    );
+  }
+
+  async getRecallFlag(warehouseId: string): Promise<boolean> {
+    await this.ensureRuntimeTables();
+    const r = await getPool().query(
+      "SELECT recall_enabled FROM floor_runtime WHERE warehouse_id = $1",
+      [warehouseId],
+    );
+    if (!r.rows[0]) return true;
+    return r.rows[0].recall_enabled !== false;
+  }
+
   async ensureSeeded(warehouseId: string): Promise<void> {
+    await this.ensureRuntimeTables();
     await withSerializable(async (c) => {
       const count = await c.query("SELECT count(*)::int AS n FROM cells WHERE warehouse_id = $1", [
         warehouseId,
@@ -195,7 +258,8 @@ export class CockroachStore implements Store {
       wave: 1,
       store: "cockroach",
       counts,
-      recallEnabled: recallEnabled(),
+      recallEnabled:
+        process.env.VERCEL === "1" ? await this.getRecallFlag(warehouseId) : recallEnabled(),
     };
   }
 
@@ -426,7 +490,10 @@ export class CockroachStore implements Store {
   }
 
   async reset(warehouseId: string): Promise<void> {
+    await this.ensureRuntimeTables();
     await withSerializable(async (c) => {
+      await c.query("DELETE FROM picker_loops WHERE warehouse_id = $1", [warehouseId]);
+      await c.query("DELETE FROM floor_runtime WHERE warehouse_id = $1", [warehouseId]);
       await c.query("DELETE FROM floor_events WHERE warehouse_id = $1", [warehouseId]);
       await c.query("DELETE FROM scents WHERE warehouse_id = $1", [warehouseId]);
       await c.query("DELETE FROM packages WHERE warehouse_id = $1", [warehouseId]);

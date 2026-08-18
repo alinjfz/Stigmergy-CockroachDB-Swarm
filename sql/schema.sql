@@ -65,4 +65,16 @@ CREATE TABLE IF NOT EXISTS floor_events (
 );
 
 CREATE INDEX IF NOT EXISTS floor_events_wh_at ON floor_events (warehouse_id, at DESC);
+
+-- Durable picker loops so a serverless host can tick them on each request.
+CREATE TABLE IF NOT EXISTS picker_loops (
+  warehouse_id STRING NOT NULL,
+  picker_id STRING NOT NULL,
+  PRIMARY KEY (warehouse_id, picker_id)
+);
+
+CREATE TABLE IF NOT EXISTS floor_runtime (
+  warehouse_id STRING PRIMARY KEY,
+  recall_enabled BOOL NOT NULL DEFAULT true
+);
 CREATE INDEX IF NOT EXISTS packages_wh_status ON packages (warehouse_id, status);

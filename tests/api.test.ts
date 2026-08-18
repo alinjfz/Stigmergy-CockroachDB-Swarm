@@ -7,8 +7,8 @@ import { killAll } from "../lib/workers";
 import { resetStoreSingleton } from "../lib/get-store";
 
 describe("API routes", () => {
-  afterEach(() => {
-    killAll();
+  afterEach(async () => {
+    await killAll();
     resetStoreSingleton();
   });
 

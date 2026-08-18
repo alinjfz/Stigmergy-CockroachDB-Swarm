@@ -9,19 +9,20 @@ import {
 } from "@/lib/config";
 import { getStore } from "@/lib/get-store";
 import { neighbors } from "@/lib/policy";
-import { recallEnabled, setRecallEnabled } from "@/lib/recall";
+import { setRecallEnabled } from "@/lib/recall";
 import type { Store } from "@/lib/store";
 import {
   freePickerIds,
   killAll,
   killHalf,
-  livePickerIds,
   respawnSame,
+  runningPickerIds,
   spawnPickers,
   startPicker,
 } from "@/lib/workers";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type Body = {
   action: "spawn" | "killHalf" | "killAll" | "respawn" | "reset" | "conflict" | "recall";
@@ -58,7 +59,7 @@ async function stageConflict(store: Store, warehouseId: string) {
       dest_y: DOCK_DOORS[Math.floor(DOCK_DOORS.length / 2)],
     }));
 
-  const ids = freePickerIds(2);
+  const ids = await freePickerIds(2, warehouseId);
   if (ids.length < 2) {
     return fail("All picker slots are already running. Stop some pickers first.");
   }
@@ -89,7 +90,7 @@ async function stageConflict(store: Store, warehouseId: string) {
       sql_text: `UPDATE cells SET reserved_by='${p.id}'\n  WHERE x=${p.x} AND y=${p.y} AND reserved_by IS NULL\n  RETURNING *;\n-- 1 row.`,
       payload: { store: store.kind, staged: true, beside: pkg.sku },
     });
-    startPicker(p.id, warehouseId);
+    await startPicker(p.id, warehouseId);
   }
 
   return NextResponse.json({
@@ -100,7 +101,7 @@ async function stageConflict(store: Store, warehouseId: string) {
       cell: [pkg.x, pkg.y],
       pickers: placed.map((p) => p.id),
     },
-    live: livePickerIds(),
+    live: await runningPickerIds(warehouseId),
   });
 }
 
@@ -119,8 +120,8 @@ export async function POST(req: Request) {
     await store.ensureSeeded(warehouseId);
 
     if (body.action === "spawn") {
-      const ids = spawnPickers(body.count ?? DEFAULT_SPAWN, warehouseId);
-      const live = livePickerIds();
+      const ids = await spawnPickers(body.count ?? DEFAULT_SPAWN, warehouseId);
+      const live = await runningPickerIds(warehouseId);
       if (ids.length === 0) {
         return fail(
           `All ${live.length} picker slots are already running. Stop some pickers before starting more.`,
@@ -132,23 +133,25 @@ export async function POST(req: Request) {
       return await stageConflict(store, warehouseId);
     }
     if (body.action === "recall") {
-      setRecallEnabled(body.on !== false);
-      return NextResponse.json({ ok: true, recallEnabled: recallEnabled() });
+      const on = body.on !== false;
+      setRecallEnabled(on);
+      await store.setRecallFlag(warehouseId, on);
+      return NextResponse.json({ ok: true, recallEnabled: on });
     }
     if (body.action === "killHalf") {
-      const killed = killHalf();
-      return NextResponse.json({ ok: true, killed, live: livePickerIds() });
+      const killed = await killHalf(warehouseId);
+      return NextResponse.json({ ok: true, killed, live: await runningPickerIds(warehouseId) });
     }
     if (body.action === "killAll") {
-      const killed = killAll();
-      return NextResponse.json({ ok: true, killed, live: livePickerIds() });
+      const killed = await killAll(warehouseId);
+      return NextResponse.json({ ok: true, killed, live: await runningPickerIds(warehouseId) });
     }
     if (body.action === "respawn") {
-      const ids = respawnSame(body.ids ?? [], warehouseId);
-      return NextResponse.json({ ok: true, ids, live: livePickerIds() });
+      const ids = await respawnSame(body.ids ?? [], warehouseId);
+      return NextResponse.json({ ok: true, ids, live: await runningPickerIds(warehouseId) });
     }
     if (body.action === "reset") {
-      killAll();
+      await killAll(warehouseId);
       setRecallEnabled(true);
       await store.reset(warehouseId);
       return NextResponse.json({ ok: true, live: [] });

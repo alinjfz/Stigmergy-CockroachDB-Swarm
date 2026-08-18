@@ -31,5 +31,9 @@ npm-debug.log*
 # docker / aws
 *.pem
 
+# vercel
+.vercel
+
 # transformers cache (optional local models)
 .cache/
+.env*

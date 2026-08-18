@@ -54,4 +54,10 @@ export type Store = {
   recordEvent(event: Omit<FloorEvent, "id" | "at"> & { at?: string }): Promise<FloorEvent>;
   reset(warehouseId: string): Promise<void>;
   heldBy(warehouseId: string, pickerId: string): Promise<Package | null>;
+  /** Running picker ids. Used when the process cannot keep setInterval (Vercel). */
+  listPickerLoops(warehouseId: string): Promise<string[]>;
+  addPickerLoops(warehouseId: string, ids: string[]): Promise<void>;
+  removePickerLoops(warehouseId: string, ids: string[]): Promise<void>;
+  setRecallFlag(warehouseId: string, on: boolean): Promise<void>;
+  getRecallFlag(warehouseId: string): Promise<boolean>;
 };
