@@ -644,7 +644,7 @@ export function FloorView() {
                 </button>
               </div>
             </div>
-            <ol className={styles.feed}>
+            <ol className={styles.feed} tabIndex={0} aria-label="Activity feed">
               {visibleEvents.length === 0 ? (
                 <li className={styles.placeholder}>
                   {liveCount === 0

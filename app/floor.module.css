@@ -577,6 +577,13 @@
   font-size: 0.78rem;
 }
 
+.activity {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
 .activityHead {
   display: flex;
   justify-content: space-between;
@@ -594,7 +601,30 @@
 .feed {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0.4rem 0 0;
+  height: 16rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.feed::-webkit-scrollbar {
+  width: 8px;
+}
+
+.feed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.feed::-webkit-scrollbar-thumb {
+  background: #3a2f26;
+  border-radius: 4px;
+}
+
+.feed::-webkit-scrollbar-thumb:hover {
+  background: var(--lock);
 }
 
 .feed li + li {
