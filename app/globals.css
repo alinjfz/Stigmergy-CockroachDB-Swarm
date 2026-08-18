@@ -1,0 +1,52 @@
+:root {
+  --ink: #0b0907;
+  --floor: #16110d;
+  --plate: #1e1712;
+  --line: #3a2e24;
+  --paper: #f3e6d0;
+  --mute: #b7a48a;
+  --ir: #ff4a14;
+  --amber: #f0a202;
+  --lock: #2ee6d6;
+  --ok: #9dff7a;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --display: "Tektur", sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+}
+
+body {
+  background:
+    radial-gradient(1200px 700px at 20% -10%, rgba(255, 74, 20, 0.16), transparent 55%),
+    radial-gradient(900px 600px at 100% 100%, rgba(46, 230, 214, 0.08), transparent 50%),
+    var(--ink);
+}
+
+a {
+  color: var(--lock);
+}
+
+button {
+  font-family: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

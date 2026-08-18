@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+dist/
+
+# env & secrets
+.env
+.env.local
+.env.*.local
+
+# private research / video script — never publish
+mydocs/
+
+# test / os
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+*.log
+npm-debug.log*
+
+# docker / aws
+*.pem
+
+# transformers cache (optional local models)
+.cache/
