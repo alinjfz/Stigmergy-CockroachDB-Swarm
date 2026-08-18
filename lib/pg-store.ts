@@ -3,8 +3,17 @@ import path from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { GRID_HEIGHT, GRID_WIDTH, SEED_PACKAGES } from "./config";
 import { embeddingLiteral } from "./embed";
+import { recallEnabled } from "./recall";
 import type { Store } from "./store";
-import type { Cell, ClaimResult, FloorEvent, FloorSnapshot, Package, Scent } from "./types";
+import type {
+  Cell,
+  ClaimResult,
+  FloorCounts,
+  FloorEvent,
+  FloorSnapshot,
+  Package,
+  Scent,
+} from "./types";
 
 let pool: Pool | null = null;
 
@@ -163,7 +172,7 @@ export class CockroachStore implements Store {
   async snapshot(warehouseId: string, livePickers: string[]): Promise<FloorSnapshot> {
     await this.ensureSeeded(warehouseId);
     const p = getPool();
-    const [cells, packages, scents, events] = await Promise.all([
+    const [cells, packages, scents, events, counts] = await Promise.all([
       p.query("SELECT * FROM cells WHERE warehouse_id = $1", [warehouseId]),
       p.query("SELECT * FROM packages WHERE warehouse_id = $1", [warehouseId]),
       p.query("SELECT * FROM scents WHERE warehouse_id = $1 ORDER BY created_at DESC LIMIT 200", [
@@ -172,6 +181,7 @@ export class CockroachStore implements Store {
       p.query("SELECT * FROM floor_events WHERE warehouse_id = $1 ORDER BY at DESC LIMIT 80", [
         warehouseId,
       ]),
+      this.counts(warehouseId),
     ]);
     return {
       warehouseId,
@@ -184,6 +194,34 @@ export class CockroachStore implements Store {
       livePickers,
       wave: 1,
       store: "cockroach",
+      counts,
+      recallEnabled: recallEnabled(),
+    };
+  }
+
+  async counts(warehouseId: string): Promise<FloorCounts> {
+    const r = await getPool().query(
+      `SELECT
+         (SELECT count(*)::int FROM floor_events WHERE warehouse_id = $1) AS events,
+         (SELECT count(*)::int FROM scents WHERE warehouse_id = $1) AS scents,
+         (SELECT count(*)::int FROM floor_events
+            WHERE warehouse_id = $1 AND event_type = 'dead_end') AS dead_ends,
+         (SELECT count(*)::int FROM floor_events
+            WHERE warehouse_id = $1 AND event_type = 'jam') AS jams,
+         (SELECT count(*)::int FROM floor_events
+            WHERE warehouse_id = $1
+              AND event_type IN ('dead_end', 'jam')
+              AND at > now() - INTERVAL '30 seconds') AS failed_recent`,
+      [warehouseId],
+    );
+    const row = r.rows[0] ?? {};
+    return {
+      events: Number(row.events ?? 0),
+      scents: Number(row.scents ?? 0),
+      deadEnds: Number(row.dead_ends ?? 0),
+      jams: Number(row.jams ?? 0),
+      failedClaimsRecent: Number(row.failed_recent ?? 0),
+      messages: 0,
     };
   }
 
@@ -269,6 +307,27 @@ export class CockroachStore implements Store {
     });
   }
 
+  async addPackage(
+    warehouseId: string,
+    spec: { sku: string; label: string; x: number; y: number; dest_x: number; dest_y: number },
+  ): Promise<Package> {
+    return withSerializable(async (c) => {
+      const ins = await c.query(
+        `INSERT INTO packages (warehouse_id, sku, label, x, y, dest_x, dest_y, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'waiting') RETURNING *`,
+        [warehouseId, spec.sku, spec.label, spec.x, spec.y, spec.dest_x, spec.dest_y],
+      );
+      const row = mapPkg(ins.rows[0]);
+      await c.query(`UPDATE cells SET package_id = $1 WHERE warehouse_id = $2 AND x = $3 AND y = $4`, [
+        row.id,
+        warehouseId,
+        spec.x,
+        spec.y,
+      ]);
+      return row;
+    });
+  }
+
   async claimPackage(warehouseId: string, packageId: string, pickerId: string): Promise<boolean> {
     return withSerializable(async (c) => {
       const r = await c.query(
@@ -329,6 +388,21 @@ export class CockroachStore implements Store {
       [warehouseId, lit, limit],
     );
     return r.rows.map(mapScent);
+  }
+
+  async hasScentFrom(
+    warehouseId: string,
+    cell: { x: number; y: number },
+    kind: Scent["kind"],
+    pickerId: string,
+  ): Promise<boolean> {
+    const r = await getPool().query(
+      `SELECT 1 FROM scents
+       WHERE warehouse_id = $1 AND cell_x = $2 AND cell_y = $3 AND kind = $4 AND picker_id = $5
+       LIMIT 1`,
+      [warehouseId, cell.x, cell.y, kind, pickerId],
+    );
+    return (r.rowCount ?? 0) > 0;
   }
 
   async recordEvent(event: Omit<FloorEvent, "id" | "at"> & { at?: string }): Promise<FloorEvent> {

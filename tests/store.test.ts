@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "../lib/memory-store";
 import { pickerTick } from "../lib/picker";
-import { TEST_WAREHOUSE } from "../lib/config";
+import { CONTESTED_SKU, TEST_WAREHOUSE } from "../lib/config";
 
 describe("MemoryStore claims", () => {
   it("lets only one picker win a concurrent cell claim", async () => {
@@ -25,15 +25,15 @@ describe("MemoryStore claims", () => {
     const store = new MemoryStore();
     await store.ensureSeeded(TEST_WAREHOUSE);
     const pkgs = await store.getPackages(TEST_WAREHOUSE);
-    const insulin = pkgs.find((p) => p.sku === "INSULIN");
-    expect(insulin).toBeTruthy();
+    const spare = pkgs.find((p) => p.sku === CONTESTED_SKU);
+    expect(spare).toBeTruthy();
     const [w1, w2] = await Promise.all([
-      store.claimPackage(TEST_WAREHOUSE, insulin!.id, "p1"),
-      store.claimPackage(TEST_WAREHOUSE, insulin!.id, "p2"),
+      store.claimPackage(TEST_WAREHOUSE, spare!.id, "p1"),
+      store.claimPackage(TEST_WAREHOUSE, spare!.id, "p2"),
     ]);
     expect([w1, w2].filter(Boolean)).toHaveLength(1);
     const again = await store.getPackages(TEST_WAREHOUSE);
-    const row = again.find((p) => p.id === insulin!.id)!;
+    const row = again.find((p) => p.id === spare!.id)!;
     expect(row.status).toBe("claimed");
     expect(row.claimed_by === "p1" || row.claimed_by === "p2").toBe(true);
   });
@@ -43,16 +43,16 @@ describe("MemoryStore claims", () => {
     await store.ensureSeeded("default");
     await store.ensureSeeded("floor-b");
     const { embedText } = await import("../lib/embed");
-    const q = embedText("jammed insulin aisle");
+    const q = embedText("jammed spare aisle");
     await store.insertScent({
       warehouse_id: "floor-b",
       cell_x: 9,
       cell_y: 4,
       kind: "dead_end",
-      reason: "jammed insulin aisle floor-b only",
+      reason: "jammed spare aisle floor-b only",
       picker_id: "px",
       wave: 1,
-      embedding: embedText("jammed insulin aisle floor-b only"),
+      embedding: embedText("jammed spare aisle floor-b only"),
     });
     await store.insertScent({
       warehouse_id: "default",

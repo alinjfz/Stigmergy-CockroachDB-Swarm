@@ -4,15 +4,15 @@ import { EMBEDDING_DIMS } from "../lib/config";
 
 describe("embedText", () => {
   it("returns a 384-d unit vector", () => {
-    const v = embedText("jammed at aisle C last insulin");
+    const v = embedText("jammed at aisle C last spare");
     expect(v).toHaveLength(EMBEDDING_DIMS);
     const mag = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
     expect(mag).toBeCloseTo(1, 5);
   });
 
   it("places similar jam phrases closer than unrelated ones", () => {
-    const a = embedText("dead-end jammed aisle C last insulin wave 1");
-    const b = embedText("blocked aisle C insulin contested last unit");
+    const a = embedText("dead-end jammed aisle C last spare wave 1");
+    const b = embedText("blocked aisle C spare contested last unit");
     const c = embedText("picnic weather forecast sunny beaches");
     expect(cosine(a, b)).toBeGreaterThan(cosine(a, c));
   });

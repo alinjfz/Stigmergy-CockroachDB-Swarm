@@ -28,7 +28,7 @@ describe("openrouter helpers", () => {
   it("falls back when no API key", async () => {
     const prev = process.env.OPENROUTER_API_KEY;
     delete process.env.OPENROUTER_API_KEY;
-    const reason = await phraseScentReason({ kind: "dead_end", cell: { x: 9, y: 4 }, sku: "INSULIN" });
+    const reason = await phraseScentReason({ kind: "dead_end", cell: { x: 9, y: 4 }, sku: "SPARE" });
     expect(reason).toContain("(9,4)");
     const fetchImpl = vi.fn();
     const tie = await openRouterTieBreak(

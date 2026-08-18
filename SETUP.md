@@ -41,7 +41,7 @@ SELECT count(*) FROM cells;
 1. In Cockroach Cloud Console open **MCP** / **Connect** → **Managed MCP Server**.
 2. Copy the snippet into Cursor (`~/.cursor/mcp.json` or project MCP settings). Endpoint reference: `https://cockroachlabs.cloud/mcp`.
 3. MCP is **read-only by default** — that is the product: judges inspect the floor, they cannot steal a reservation.
-4. Ask: `Who holds INSULIN on warehouse_id = 'default'?`
+4. Ask: `Who holds SPARE on warehouse_id = 'default'?`
 5. Copy [`skills/stigmergy-floor/SKILL.md`](skills/stigmergy-floor/SKILL.md) into Cursor skills if you want the query pack on the agent.
 
 Create a **read-only SQL user** for humans if you also point `/inspector` at a restricted role later. The demo URL inspector is already GET-only.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "../lib/memory-store";
 import { pickerTick } from "../lib/picker";
-import { TEST_WAREHOUSE } from "../lib/config";
+import { CONTESTED_SKU, TEST_WAREHOUSE } from "../lib/config";
 
 describe("pickerTick", () => {
   it("spawns onto the dock and writes an event", async () => {
@@ -18,20 +18,20 @@ describe("pickerTick", () => {
     const store = new MemoryStore();
     await store.ensureSeeded(TEST_WAREHOUSE);
     const pkgs = await store.getPackages(TEST_WAREHOUSE);
-    const insulin = pkgs.find((p) => p.sku === "INSULIN")!;
-    await store.claimCell(TEST_WAREHOUSE, insulin.x, insulin.y, "p1");
-    await store.claimCell(TEST_WAREHOUSE, insulin.x, insulin.y - 1, "p2");
+    const spare = pkgs.find((p) => p.sku === CONTESTED_SKU)!;
+    await store.claimCell(TEST_WAREHOUSE, spare.x, spare.y, "p1");
+    await store.claimCell(TEST_WAREHOUSE, spare.x, spare.y - 1, "p2");
     await store.movePicker(
       TEST_WAREHOUSE,
       "p2",
-      { x: insulin.x, y: insulin.y - 1 },
-      { x: insulin.x, y: insulin.y },
+      { x: spare.x, y: spare.y - 1 },
+      { x: spare.x, y: spare.y },
     );
     const first = await pickerTick(store, "p1", TEST_WAREHOUSE);
     const second = await pickerTick(store, "p2", TEST_WAREHOUSE);
     const actions = [first.action, second.action];
     const snap = await store.snapshot(TEST_WAREHOUSE, ["p1", "p2"]);
-    const claimed = snap.packages.find((p) => p.sku === "INSULIN");
+    const claimed = snap.packages.find((p) => p.sku === CONTESTED_SKU);
     expect(claimed?.status === "claimed" || actions.includes("claimed") || actions.includes("dead_end")).toBe(
       true,
     );

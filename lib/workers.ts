@@ -32,6 +32,27 @@ export function spawnPickers(count = DEFAULT_SPAWN, warehouseId = DEFAULT_WAREHO
   return ids;
 }
 
+/** Picker slots not currently running, so a new experiment can borrow some. */
+export function freePickerIds(count: number): string[] {
+  const out: string[] = [];
+  for (let i = 1; i <= MAX_PICKERS && out.length < count; i++) {
+    const id = pickerId(i);
+    if (!table().has(id)) out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Start one picker that has already been given a position. Used by the conflict
+ * experiment: placing two pickers next to the same shelf is not the same as
+ * telling either of them what to do, so the swarm stays unsupervised.
+ */
+export function startPicker(id: string, warehouseId = DEFAULT_WAREHOUSE): boolean {
+  if (table().has(id)) return false;
+  startLoop(id, warehouseId);
+  return true;
+}
+
 function startLoop(id: string, warehouseId: string): void {
   const tick = () => {
     void pickerTick(getStore(), id, warehouseId).catch((err: unknown) => {

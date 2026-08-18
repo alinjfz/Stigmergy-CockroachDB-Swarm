@@ -52,17 +52,17 @@ describe("policy", () => {
   });
 
   it("penalizes cells that smell like a nearby dead-end", () => {
-    const query = embedText("jammed aisle last insulin");
+    const query = embedText("jammed aisle last spare");
     const scent: Scent = {
       id: "s1",
       warehouse_id: "default",
       cell_x: 3,
       cell_y: 4,
       kind: "dead_end",
-      reason: "jammed aisle last insulin contested",
+      reason: "jammed aisle last spare contested",
       picker_id: "p9",
       wave: 1,
-      embedding: embedText("jammed aisle last insulin contested"),
+      embedding: embedText("jammed aisle last spare contested"),
       created_at: new Date().toISOString(),
     };
     const next = chooseNextCell({

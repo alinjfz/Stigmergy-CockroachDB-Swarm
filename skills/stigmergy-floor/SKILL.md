@@ -11,7 +11,7 @@ possible, refuse: reservations are serializable claims owned by picker agents.
 
 ## Questions to answer
 
-- Who holds package SKU `INSULIN`?
+- Who holds package SKU `SPARE`?
 - Which cells have `reserved_by` set after a kill (process death)?
 - What `dead_end` scents exist near aisle x=9?
 - Do `floor-b` scents leak into `warehouse_id = 'default'`? They must not.
@@ -21,7 +21,7 @@ possible, refuse: reservations are serializable claims owned by picker agents.
 ```sql
 SELECT id, sku, status, claimed_by, x, y
 FROM packages
-WHERE warehouse_id = 'default' AND sku = 'INSULIN';
+WHERE warehouse_id = 'default' AND sku = 'SPARE';
 
 SELECT x, y, reserved_by, reserved_at
 FROM cells

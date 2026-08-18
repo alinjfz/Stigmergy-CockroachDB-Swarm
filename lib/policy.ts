@@ -23,6 +23,19 @@ export function neighbors(x: number, y: number): AdjacentCell[] {
   return out;
 }
 
+/**
+ * A picker can reach a shelf it is standing next to, not only one it is standing
+ * on. This is what lets two pickers want the same package at the same instant:
+ * the cell lock stops them sharing a square, but it cannot stop them both
+ * reaching for the same unit. The package claim has to settle that.
+ */
+export function withinReach(
+  from: AdjacentCell,
+  target: { x: number; y: number },
+): boolean {
+  return manhattan(from.x, from.y, target.x, target.y) <= 1;
+}
+
 export function occupancyMap(cells: Cell[]): Map<string, Cell> {
   const m = new Map<string, Cell>();
   for (const c of cells) m.set(`${c.x},${c.y}`, c);
@@ -34,34 +47,37 @@ export function isFree(cell: Cell | undefined, selfId: string): boolean {
   return cell.reserved_by === null || cell.reserved_by === selfId;
 }
 
+/** How many extra steps a picker will walk to avoid one strongly recalled failure. */
+const SCENT_COST = 10;
+
 /**
- * Score a candidate cell: closer to dest is better; similar dead-end scents
- * nearby are a penalty (the swarm "smells" past jams).
+ * What it costs to walk into a cell. One for the step, plus the strength of any
+ * similar dead-end or jam remembered near it.
  */
-export function scoreCell(opts: {
+export function cellCost(opts: {
   cell: AdjacentCell;
-  dest: AdjacentCell;
-  selfId: string;
-  occ: Map<string, Cell>;
   similarDeadEnds: Scent[];
   queryEmbedding: number[];
 }): number {
-  const key = `${opts.cell.x},${opts.cell.y}`;
-  const occ = opts.occ.get(key);
-  if (!isFree(occ, opts.selfId)) return Number.NEGATIVE_INFINITY;
-
-  let score = 100 - manhattan(opts.cell.x, opts.cell.y, opts.dest.x, opts.dest.y) * 4;
-
+  let cost = 1;
   for (const scent of opts.similarDeadEnds) {
     const dist = manhattan(opts.cell.x, opts.cell.y, scent.cell_x, scent.cell_y);
     if (dist > 2) continue;
-    const sim = cosine(opts.queryEmbedding, scent.embedding);
-    const heat = Math.max(0, sim);
-    score -= heat * (3 - dist) * 40;
+    const heat = Math.max(0, cosine(opts.queryEmbedding, scent.embedding));
+    cost += heat * (3 - dist) * SCENT_COST;
   }
-  return score;
+  return cost;
 }
 
+/**
+ * Cheapest route to the destination, returning only the first step of it.
+ *
+ * This is a shortest-path search rather than a greedy hill climb, and that choice
+ * is load-bearing. Greedy stepping plus a scent field strong enough to actually
+ * divert anyone produces local minima: carriers oscillate between two cells and
+ * the floor never clears. Costing a whole path means a picker takes a visibly
+ * longer way around a remembered failure and still arrives.
+ */
 export function chooseNextCell(opts: {
   from: AdjacentCell;
   dest: AdjacentCell;
@@ -71,25 +87,54 @@ export function chooseNextCell(opts: {
   queryEmbedding: number[];
 }): AdjacentCell | null {
   const occ = occupancyMap(opts.cells);
-  const candidates = neighbors(opts.from.x, opts.from.y);
-  let best: AdjacentCell | null = null;
-  let bestScore = Number.NEGATIVE_INFINITY;
-  for (const c of candidates) {
-    const s = scoreCell({
-      cell: c,
-      dest: opts.dest,
-      selfId: opts.selfId,
-      occ,
-      similarDeadEnds: opts.similarDeadEnds,
-      queryEmbedding: opts.queryEmbedding,
-    });
-    if (s > bestScore) {
-      bestScore = s;
-      best = c;
+  const k = (c: { x: number; y: number }) => `${c.x},${c.y}`;
+  const passable = (c: AdjacentCell) => isFree(occ.get(k(c)), opts.selfId);
+
+  // A shelf cell can be held by whoever is standing on it, and a picker only has
+  // to get next to a package to reach it. So an unreachable goal degrades to the
+  // cheapest cell beside it rather than to "blocked".
+  const goals = passable(opts.dest)
+    ? [opts.dest]
+    : neighbors(opts.dest.x, opts.dest.y).filter(passable);
+  if (goals.length === 0) return null;
+  const goalKeys = new Set(goals.map(k));
+
+  const best = new Map<string, number>([[k(opts.from), 0]]);
+  const firstStep = new Map<string, AdjacentCell>();
+  const queue: { cell: AdjacentCell; cost: number }[] = [{ cell: opts.from, cost: 0 }];
+  const done = new Set<string>();
+
+  while (queue.length > 0) {
+    // The grid is 120 cells, so a linear scan is cheaper than a heap.
+    let pick = 0;
+    for (let i = 1; i < queue.length; i++) {
+      if (queue[i].cost < queue[pick].cost) pick = i;
+    }
+    const { cell, cost } = queue.splice(pick, 1)[0];
+    const ck = k(cell);
+    if (done.has(ck)) continue;
+    done.add(ck);
+
+    if (goalKeys.has(ck) && ck !== k(opts.from)) return firstStep.get(ck) ?? null;
+
+    for (const n of neighbors(cell.x, cell.y)) {
+      const nk = k(n);
+      if (done.has(nk) || !passable(n)) continue;
+      const next = cost + cellCost({
+        cell: n,
+        similarDeadEnds: opts.similarDeadEnds,
+        queryEmbedding: opts.queryEmbedding,
+      });
+      if (next < (best.get(nk) ?? Number.POSITIVE_INFINITY)) {
+        best.set(nk, next);
+        firstStep.set(nk, ck === k(opts.from) ? n : firstStep.get(ck)!);
+        queue.push({ cell: n, cost: next });
+      }
     }
   }
-  if (bestScore === Number.NEGATIVE_INFINITY) return null;
-  return best;
+
+  // Fully walled in this tick. The caller records a block and tries again.
+  return null;
 }
 
 export function nearestWaitingPackage<T extends { x: number; y: number; status: string }>(

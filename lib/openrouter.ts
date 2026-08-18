@@ -29,13 +29,34 @@ export function parseCellChoice(
   return options.find((o) => o.x === x && o.y === y) ?? null;
 }
 
+/**
+ * This string is stored in scents.reason, embedded into the vector, and shown to
+ * the user verbatim. It has to read as a sentence on its own, because the
+ * interface quotes it as the picker's own account of what happened.
+ */
+export function plainScentReason(
+  kind: string,
+  cell: { x: number; y: number },
+  sku?: string,
+): string {
+  const at = `(${cell.x},${cell.y})`;
+  if (kind === "dead_end") {
+    return sku
+      ? `another picker got ${sku} at ${at} first`
+      : `lost a package claim at ${at}`;
+  }
+  if (kind === "jam") return `cell ${at} was already reserved by another picker`;
+  if (kind === "trail") return `a delivery came through ${at}`;
+  return `${kind.replaceAll("_", " ")} at ${at}`;
+}
+
 export async function phraseScentReason(opts: {
   kind: string;
   cell: { x: number; y: number };
   sku?: string;
   fetchImpl?: typeof fetch;
 }): Promise<string> {
-  const fallback = `${opts.kind} at (${opts.cell.x},${opts.cell.y})${opts.sku ? ` near ${opts.sku}` : ""} during wave`;
+  const fallback = plainScentReason(opts.kind, opts.cell, opts.sku);
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) return fallback;
 

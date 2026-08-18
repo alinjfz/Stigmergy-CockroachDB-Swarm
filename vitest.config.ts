@@ -6,6 +6,10 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     exclude: ["tests/integration/**"],
+    env: {
+      STIGMERGY_STORE: "memory",
+      DATABASE_URL: "",
+    },
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, ".") },

@@ -1,13 +1,24 @@
 import { DEFAULT_WAREHOUSE } from "./config";
 import { embedText } from "./embed";
 import { phraseScentReason } from "./openrouter";
-import { chooseNextCell, nearestWaitingPackage } from "./policy";
+import { chooseNextCell, nearestWaitingPackage, withinReach } from "./policy";
+import { recallEnabled } from "./recall";
 import type { Store } from "./store";
+import type { Package } from "./types";
 
 export type TickResult = {
   pickerId: string;
   action: string;
 };
+
+/**
+ * Deliveries all land on column 0, so an idle picker parked there would block
+ * them forever. It only has to step off that column: one move, then it stops for
+ * good. Sending idle pickers further than this makes them chase parking spots and
+ * thrash, which repeatedly invalidates the routes of pickers still carrying
+ * something.
+ */
+const DOCK_COLUMN_X = 0;
 
 async function spawnAtDock(store: Store, warehouseId: string, pickerId: string): Promise<boolean> {
   const n = Number(pickerId.replace(/\D/g, "")) || 0;
@@ -29,6 +40,15 @@ async function spawnAtDock(store: Store, warehouseId: string, pickerId: string):
     }
   }
   return false;
+}
+
+async function winnerOf(
+  store: Store,
+  warehouseId: string,
+  packageId: string,
+): Promise<string | null> {
+  const rows: Package[] = await store.getPackages(warehouseId);
+  return rows.find((p) => p.id === packageId)?.claimed_by ?? null;
 }
 
 export async function pickerTick(
@@ -82,18 +102,36 @@ export async function pickerTick(
     return { pickerId, action: "delivered" };
   }
 
-  const dest = held
+  const target = held ? null : nearestWaitingPackage({ x: pos.x, y: pos.y }, packages);
+  let dest = held
     ? { x: held.dest_x, y: held.dest_y }
-    : (() => {
-        const target = nearestWaitingPackage({ x: pos.x, y: pos.y }, packages);
-        return target ? { x: target.x, y: target.y } : null;
-      })();
+    : target
+      ? { x: target.x, y: target.y }
+      : null;
 
-  if (!dest) return { pickerId, action: "idle" };
+  if (!dest) {
+    // A picker with nothing to do still holds its cell. If that cell is a dock
+    // door, every remaining delivery is blocked forever by a picker that has no
+    // reason to move.
+    if (pos.x > DOCK_COLUMN_X) return { pickerId, action: "idle" };
+    dest = { x: DOCK_COLUMN_X + 1, y: pos.y };
+  }
 
-  if (!held && pos.x === dest.x && pos.y === dest.y) {
-    const pkg = packages.find((p) => p.x === dest.x && p.y === dest.y && p.status === "waiting");
-    if (pkg) {
+  if (!held) {
+    // Optimistic concurrency: the packages read above is a hint, not the truth.
+    // A picker that can reach a unit attempts the claim and lets the database
+    // arbitrate, which is the only way a losing write can ever be observed.
+    const inReach = packages.filter((p) => p.status !== "delivered" && withinReach(pos, p));
+    const pkg =
+      inReach.find((p) => p.id === target?.id) ??
+      inReach.find((p) => p.status === "waiting") ??
+      inReach[0];
+    const alreadyLostThisOne =
+      pkg && pkg.status !== "waiting"
+        ? await store.hasScentFrom(warehouseId, { x: pkg.x, y: pkg.y }, "dead_end", pickerId)
+        : false;
+    if (pkg && pkg.claimed_by !== pickerId && !alreadyLostThisOne) {
+      const claimSql = `UPDATE packages SET claimed_by='${pickerId}', status='claimed'\n  WHERE id='${pkg.id}' AND claimed_by IS NULL AND status='waiting'\n  RETURNING *;`;
       const won = await store.claimPackage(warehouseId, pkg.id, pickerId);
       if (won) {
         await store.recordEvent({
@@ -103,21 +141,23 @@ export async function pickerTick(
           cell_x: pos.x,
           cell_y: pos.y,
           package_id: pkg.id,
-          sql_text: `UPDATE packages SET claimed_by='${pickerId}' WHERE id='${pkg.id}' AND claimed_by IS NULL AND status='waiting' RETURNING *`,
-          payload: { sku: pkg.sku },
+          sql_text: `${claimSql}\n-- 1 row. This picker now holds ${pkg.sku}.`,
+          payload: { sku: pkg.sku, label: pkg.label, rows: 1 },
         });
         return { pickerId, action: "claimed" };
       }
+
+      const winner = await winnerOf(store, warehouseId, pkg.id);
       const reason = await phraseScentReason({
         kind: "dead_end",
-        cell: { x: pos.x, y: pos.y },
+        cell: { x: pkg.x, y: pkg.y },
         sku: pkg.sku,
       });
       const embedding = embedText(`${reason} last unit contested ${pkg.sku}`);
       await store.insertScent({
         warehouse_id: warehouseId,
-        cell_x: pos.x,
-        cell_y: pos.y,
+        cell_x: pkg.x,
+        cell_y: pkg.y,
         kind: "dead_end",
         reason,
         picker_id: pickerId,
@@ -128,11 +168,11 @@ export async function pickerTick(
         warehouse_id: warehouseId,
         picker_id: pickerId,
         event_type: "dead_end",
-        cell_x: pos.x,
-        cell_y: pos.y,
+        cell_x: pkg.x,
+        cell_y: pkg.y,
         package_id: pkg.id,
-        sql_text: `INSERT INTO scents (kind, reason, embedding) — loser of serializable claim`,
-        payload: { sku: pkg.sku },
+        sql_text: `${claimSql}\n-- 0 rows${winner ? `: ${winner} already holds it` : ""}.\nINSERT INTO scents (kind, reason, embedding)\n  VALUES ('dead_end', '${reason.replaceAll("'", "''")}', <384-d vector>);`,
+        payload: { sku: pkg.sku, label: pkg.label, rows: 0, winner, reason },
       });
       return { pickerId, action: "dead_end" };
     }
@@ -142,7 +182,8 @@ export async function pickerTick(
     ? `carry ${held.sku} toward dock avoid jam`
     : `seek package jammed aisle last unit`;
   const queryEmbedding = embedText(queryText);
-  const similar = await store.similarScents(warehouseId, queryEmbedding, 6);
+  const recallOn = recallEnabled();
+  const similar = recallOn ? await store.similarScents(warehouseId, queryEmbedding, 6) : [];
   const deadEnds = similar.filter((s) => s.kind === "dead_end" || s.kind === "jam");
 
   const next = chooseNextCell({
@@ -181,8 +222,8 @@ export async function pickerTick(
       cell_x: next.x,
       cell_y: next.y,
       package_id: held?.id ?? null,
-      sql_text: `UPDATE cells SET reserved_by='${pickerId}' WHERE x=${next.x} AND y=${next.y} AND reserved_by IS NULL RETURNING * — 0 rows`,
-      payload: {},
+      sql_text: `UPDATE cells SET reserved_by='${pickerId}'\n  WHERE x=${next.x} AND y=${next.y} AND reserved_by IS NULL\n  RETURNING *;\n-- 0 rows. Another picker holds that cell.`,
+      payload: { rows: 0, recall: recallOn ? "on" : "off" },
     });
     return { pickerId, action: "jam" };
   }
@@ -194,8 +235,13 @@ export async function pickerTick(
     cell_x: next.x,
     cell_y: next.y,
     package_id: held?.id ?? null,
-    sql_text: `UPDATE cells SET reserved_by='${pickerId}' WHERE x=${next.x} AND y=${next.y} AND reserved_by IS NULL RETURNING *`,
-    payload: {},
+    sql_text: `UPDATE cells SET reserved_by='${pickerId}'\n  WHERE x=${next.x} AND y=${next.y} AND reserved_by IS NULL\n  RETURNING *;\n-- 1 row.`,
+    payload: {
+      rows: 1,
+      recall: recallOn ? "on" : "off",
+      recalled: similar.length,
+      warnings: deadEnds.length,
+    },
   });
   return { pickerId, action: "step" };
 }

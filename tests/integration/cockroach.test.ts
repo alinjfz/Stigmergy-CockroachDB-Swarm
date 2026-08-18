@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CockroachStore } from "../../lib/pg-store";
-import { TEST_WAREHOUSE } from "../../lib/config";
+import { CONTESTED_SKU, TEST_WAREHOUSE } from "../../lib/config";
 import { embedText } from "../../lib/embed";
 import { pickerTick } from "../../lib/picker";
 
@@ -21,10 +21,10 @@ describe.skipIf(!hasDb)("Cockroach integration", () => {
     const store = new CockroachStore();
     await store.reset(TEST_WAREHOUSE);
     const pkgs = await store.getPackages(TEST_WAREHOUSE);
-    const insulin = pkgs.find((p) => p.sku === "INSULIN")!;
+    const spare = pkgs.find((p) => p.sku === CONTESTED_SKU)!;
     const [w1, w2] = await Promise.all([
-      store.claimPackage(TEST_WAREHOUSE, insulin.id, "p1"),
-      store.claimPackage(TEST_WAREHOUSE, insulin.id, "p2"),
+      store.claimPackage(TEST_WAREHOUSE, spare.id, "p1"),
+      store.claimPackage(TEST_WAREHOUSE, spare.id, "p2"),
     ]);
     expect([w1, w2].filter(Boolean)).toHaveLength(1);
   });
@@ -38,12 +38,12 @@ describe.skipIf(!hasDb)("Cockroach integration", () => {
       cell_x: 9,
       cell_y: 4,
       kind: "dead_end",
-      reason: "poisoned retrieval from floor-b insulin jam",
+      reason: "poisoned retrieval from floor-b spare jam",
       picker_id: "px",
       wave: 1,
-      embedding: embedText("poisoned retrieval from floor-b insulin jam"),
+      embedding: embedText("poisoned retrieval from floor-b spare jam"),
     });
-    const q = embedText("poisoned retrieval insulin jam");
+    const q = embedText("poisoned retrieval spare jam");
     const hits = await store.similarScents(TEST_WAREHOUSE, q, 5);
     expect(hits.every((h) => h.warehouse_id === TEST_WAREHOUSE)).toBe(true);
   });

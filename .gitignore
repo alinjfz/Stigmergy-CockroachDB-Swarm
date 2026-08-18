@@ -17,6 +17,9 @@ dist/
 # private research / video script — never publish
 mydocs/
 
+# typescript incremental build cache
+*.tsbuildinfo
+
 # test / os
 coverage/
 playwright-report/

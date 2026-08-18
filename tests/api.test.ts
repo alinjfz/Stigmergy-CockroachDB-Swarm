@@ -22,14 +22,14 @@ describe("API routes", () => {
     expect(json.store).toBe("memory");
   });
 
-  it("floor snapshot includes insulin and the serializable grid", async () => {
+  it("floor snapshot includes the last spare and the serializable grid", async () => {
     process.env.STIGMERGY_STORE = "memory";
     delete process.env.DATABASE_URL;
     resetStoreSingleton();
     const res = await floor(new Request("http://localhost/api/floor"));
     const json = await res.json();
     expect(json.width).toBe(12);
-    expect(json.packages.some((p: { sku: string }) => p.sku === "INSULIN")).toBe(true);
+    expect(json.packages.some((p: { sku: string }) => p.sku === "SPARE")).toBe(true);
     expect(json.cells.length).toBe(120);
   });
 

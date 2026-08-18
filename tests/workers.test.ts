@@ -1,10 +1,17 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resetStoreSingleton } from "../lib/get-store";
 import { killAll, killHalf, livePickerIds, respawnSame, spawnPickers } from "../lib/workers";
 
 describe("workers", () => {
+  beforeEach(() => {
+    process.env.STIGMERGY_STORE = "memory";
+    delete process.env.DATABASE_URL;
+    resetStoreSingleton();
+    killAll();
+  });
+
   afterEach(() => {
     killAll();
-    vi.useRealTimers();
   });
 
   it("spawn, kill half, respawn same ids — RAM gone, ids persist", () => {

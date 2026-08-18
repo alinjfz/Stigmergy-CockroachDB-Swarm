@@ -47,6 +47,29 @@ export type FloorEvent = {
   payload: Record<string, unknown> | null;
 };
 
+/**
+ * Totals read straight out of the tables, so the interface can show how much has
+ * actually been written rather than how much happens to fit in the event window.
+ */
+export type FloorCounts = {
+  /** Rows in floor_events. Every picker action appends one. */
+  events: number;
+  /** Rows in scents, including the vector column. */
+  scents: number;
+  /** Lost package claims: the moments the whole demo is about. */
+  deadEnds: number;
+  /** Lost cell claims. */
+  jams: number;
+  /** dead_end + jam in the last 30 seconds, for the recall comparison. */
+  failedClaimsRecent: number;
+  /**
+   * Messages sent between pickers. Structurally zero: there is no code path in
+   * this repo that sends one. Kept as a field so the UI can show it as a count
+   * rather than a claim.
+   */
+  messages: 0;
+};
+
 export type FloorSnapshot = {
   warehouseId: string;
   width: number;
@@ -58,6 +81,9 @@ export type FloorSnapshot = {
   livePickers: string[];
   wave: number;
   store: "cockroach" | "memory";
+  counts: FloorCounts;
+  /** False while the operator has past-failure recall switched off. */
+  recallEnabled: boolean;
 };
 
 export type ClaimResult =

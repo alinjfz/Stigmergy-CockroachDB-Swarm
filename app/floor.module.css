@@ -3,256 +3,779 @@
   --mono: var(--font-mono), "Red Hat Mono", ui-monospace, monospace;
   min-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   position: relative;
   overflow: hidden;
   font-family: var(--mono);
 }
 
+/*
+ * Kept at low opacity and below the content. At 0.18 with mix-blend-mode it was
+ * lowering the contrast ratio of every element on the page.
+ */
 .grain {
   pointer-events: none;
   position: absolute;
   inset: 0;
-  opacity: 0.18;
+  opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay;
-  z-index: 8;
+  z-index: 0;
 }
 
-.hudTop {
+/* ---------- claim bar ---------- */
+
+.claimBar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: end;
-  gap: 1rem;
-  padding: 1.1rem 1.4rem 0.6rem;
+  grid-template-columns: minmax(0, 1.5fr) auto auto;
+  align-items: start;
+  gap: 1.5rem;
+  padding: 1.1rem 1.4rem 0.7rem;
+  position: relative;
   z-index: 2;
 }
 
 .kicker {
-  margin: 0;
-  letter-spacing: 0.22em;
+  margin: 0 0 0.4rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  font-size: 0.62rem;
-  color: var(--mute);
-}
-
-.title {
+  font-size: 0.75rem;
+  color: var(--paper);
   font-family: var(--display);
-  font-weight: 800;
-  font-size: clamp(2.2rem, 5vw, 4.2rem);
-  line-height: 0.9;
-  margin: 0.15rem 0 0;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
 }
 
-.caption {
+.kicker span {
+  color: var(--mute);
+  letter-spacing: 0.1em;
+}
+
+/* The most comprehension-changing sentence is the biggest thing on the page. */
+.claim {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.1rem, 2.1vw, 1.7rem);
+  line-height: 1.25;
   margin: 0;
-  text-align: center;
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--amber);
-  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  padding: 0.45rem 0.7rem;
-  align-self: center;
+  max-width: 34rem;
+  color: var(--paper);
+  letter-spacing: -0.01em;
 }
 
-.stats {
+.counters {
   display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
+  gap: 1.4rem;
+  margin: 0;
+  padding: 0.55rem 0 0;
+}
+
+.counter dt {
   font-size: 0.75rem;
   color: var(--mute);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+  max-width: 9rem;
 }
+
+.counter dd {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.65rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.big {
+  color: var(--lock);
+}
+
+/*
+ * A zero that visibly refuses to move while the row counter races is the only
+ * way to make "they never message each other" something you can perceive.
+ */
+.zero {
+  color: var(--paper);
+  border-bottom: 2px dotted color-mix(in srgb, var(--paper) 45%, transparent);
+  cursor: help;
+}
+
+.headerSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding-top: 0.55rem;
+}
+
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.conn i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.conn_ok {
+  color: var(--mute);
+}
+.conn_ok i {
+  background: var(--ok);
+}
+.conn_warn {
+  color: var(--amber);
+}
+.conn_warn i {
+  background: var(--amber);
+}
+.conn_error {
+  color: var(--ir);
+}
+.conn_error i {
+  background: var(--ir);
+}
+.conn_pending {
+  color: var(--mute);
+}
+.conn_pending i {
+  background: var(--mute);
+}
+
+/* ---------- banners ---------- */
+
+.bannerWarn,
+.bannerError {
+  margin: 0 1.4rem 0.6rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  position: relative;
+  z-index: 2;
+}
+
+.bannerWarn {
+  border: 1px solid var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--paper);
+}
+
+.bannerError {
+  border: 1px solid var(--ir);
+  background: color-mix(in srgb, var(--ir) 16%, transparent);
+  color: var(--paper);
+}
+
+.liveStatus {
+  margin: 0 1.4rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--amber);
+  min-height: 1.2em;
+  position: relative;
+  z-index: 2;
+}
+
+/* ---------- stage ---------- */
 
 .stage {
   display: grid;
-  grid-template-columns: 1fr minmax(280px, 34vw);
-  gap: 0.8rem;
-  padding: 0.4rem 1.2rem 0.2rem;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 30vw);
+  gap: 1rem;
+  padding: 0.2rem 1.4rem 0.4rem;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.floorWrap {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.floorHead {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.dockTag {
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lock);
+}
+
+.progress {
+  color: var(--mute);
+}
+
+.skeleton,
+.empty {
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: rgba(12, 10, 8, 0.85);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--paper);
+}
+
+.empty p,
+.skeleton p {
+  margin: 0;
+}
+
+/* ---------- grid ---------- */
+
+.gridFrame {
+  display: grid;
+  grid-template-columns: 1.3rem minmax(0, 1fr);
+  grid-template-rows: 1rem minmax(0, 1fr);
+  gap: 0.2rem;
   min-height: 0;
 }
 
+.rulerTop {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  font-size: 0.78rem;
+  color: var(--mute);
+  text-align: center;
+  padding: 0 10px;
+}
+
+.rulerLeft {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: 1fr;
+  font-size: 0.78rem;
+  color: var(--mute);
+  align-items: center;
+  justify-items: end;
+  padding: 10px 0;
+}
+
+/*
+ * No perspective transform. It skewed label legibility, distorted pointer
+ * targets unevenly across rows, and is a vestibular trigger.
+ */
 .grid {
+  grid-column: 2;
+  grid-row: 2;
   display: grid;
   gap: 3px;
   background: #090705;
   padding: 10px;
   border: 1px solid var(--line);
-  box-shadow:
-    inset 0 0 80px rgba(0, 0, 0, 0.55),
-    0 20px 60px var(--shadow);
-  transform: perspective(1400px) rotateX(8deg);
-  transform-origin: center top;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5);
   min-height: 0;
 }
 
 .cell {
   position: relative;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
   background:
-    linear-gradient(180deg, rgba(255, 74, 20, calc(var(--dead, 0) * 0.55)), transparent 62%),
-    linear-gradient(0deg, rgba(240, 162, 2, calc(var(--trail, 0) * 0.4)), transparent 55%),
-    linear-gradient(90deg, rgba(255, 90, 40, calc(var(--jam, 0) * 0.28)), transparent 50%),
+    linear-gradient(180deg, rgba(255, 74, 20, calc(var(--dead, 0) * 0.6)), transparent 62%),
+    linear-gradient(0deg, rgba(240, 162, 2, calc(var(--trail, 0) * 0.32)), transparent 55%),
+    linear-gradient(90deg, rgba(255, 138, 40, calc(var(--jam, 0) * 0.4)), transparent 55%),
     linear-gradient(180deg, #2a211a, #14100c);
-  border: 1px solid #2b221b;
+  border: 1px solid #33291f;
   overflow: hidden;
-  min-height: 46px;
-}
-
-.cell em {
-  position: absolute;
-  left: 4px;
-  bottom: 2px;
-  font-style: normal;
-  font-size: 0.55rem;
-  color: #6d5d4d;
+  min-height: 44px;
+  padding: 0;
 }
 
 .dock {
   box-shadow: inset 3px 0 0 var(--lock);
 }
 
-.locked {
-  outline: 1px solid color-mix(in srgb, var(--lock) 70%, transparent);
+.held {
+  outline: 1px solid color-mix(in srgb, var(--lock) 65%, transparent);
 }
 
-.alive .beetle {
-  background: var(--lock);
-  box-shadow: 0 0 12px var(--lock);
+.running {
+  outline: 2px solid var(--lock);
 }
 
-.beetle {
+/* A stopped holder is the product's whole point, so it gets a shape and a word,
+   not just a different fill. */
+.stopped {
+  outline: 2px dashed var(--lock);
+}
+
+.bot {
   position: absolute;
-  top: 7px;
-  left: 7px;
-  width: 11px;
-  height: 7px;
+  top: 6px;
+  left: 6px;
+  width: 12px;
+  height: 8px;
   border-radius: 6px 6px 4px 4px;
-  background: #5a6a68;
+  background: var(--lock);
+  box-shadow: 0 0 10px var(--lock);
   animation: crawl 1.1s ease-in-out infinite alternate;
 }
 
+.lockTag {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--lock);
+}
+
+.padlock {
+  width: 7px;
+  height: 8px;
+  border: 1.5px solid var(--lock);
+  border-radius: 1px;
+  border-top-width: 4px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+
 .sku,
-.insulin {
+.contested {
   position: absolute;
   right: 4px;
-  top: 5px;
-  font-size: 0.52rem;
-  letter-spacing: 0.04em;
-  max-width: 90%;
+  bottom: 3px;
+  left: 4px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  max-width: 94%;
   text-align: right;
   font-weight: 700;
   color: var(--paper);
+  line-height: 1.15;
 }
 
-.insulin {
+.contested {
   color: var(--ir);
-  text-shadow: 0 0 10px rgba(255, 74, 20, 0.6);
+  text-shadow: 0 0 8px rgba(255, 74, 20, 0.5);
+}
+
+.cell:focus-visible {
+  outline: 3px solid var(--paper);
+  outline-offset: -1px;
+  z-index: 2;
+}
+
+.picked {
+  box-shadow: inset 0 0 0 2px var(--amber);
 }
 
 .pulse {
   animation: ping 0.9s ease;
 }
 
+/* ---------- rail ---------- */
+
 .rail {
-  background: rgba(12, 10, 8, 0.86);
+  background: rgba(12, 10, 8, 0.9);
   border-left: 1px solid var(--line);
-  padding: 0.6rem 0.8rem;
+  padding: 0.7rem 0.9rem;
   overflow: auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .rail h2 {
   font-family: var(--display);
   text-transform: uppercase;
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.rail h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  font-family: var(--display);
+  color: var(--paper);
 }
 
 .railHint {
-  margin: 0.2rem 0 0.8rem;
+  margin: 0.25rem 0 0.7rem;
   color: var(--mute);
-  font-size: 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
-.rail ol {
+.placeholder {
+  color: var(--mute);
+  font-size: 0.78rem;
+  margin: 0;
+  padding: 0.3rem 0;
+}
+
+.tally {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  color: var(--ir);
+}
+
+/* Heading, hint and tally stay pinned. The list is a fixed-height box so
+   Activity never gets pushed off the rail, even when SQL is shown. */
+.results {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.cardList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.4rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  height: 16rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.cardList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cardList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cardList::-webkit-scrollbar-thumb {
+  background: #3a2f26;
+  border-radius: 4px;
+}
+
+.cardList::-webkit-scrollbar-thumb:hover {
+  background: var(--lock);
+}
+
+/* Results persist; the feed scrolls. A conflict must not disappear unread. */
+.card {
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--line));
+  border-left: 3px solid var(--amber);
+  padding: 0.6rem 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  background: rgba(24, 19, 14, 0.9);
+  max-height: 14.5rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.card p {
+  margin: 0 0 0.35rem;
+}
+
+.card code {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: #e2d5bd;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-top: 1px solid var(--line);
+  padding-top: 0.4rem;
+}
+
+/* A table name mentioned mid-sentence must not break the sentence in two. */
+.card code.inlineCode {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 0.75rem;
+}
+
+.cardNext {
+  color: var(--lock);
+}
+
+.cardMetric {
+  font-variant-numeric: tabular-nums;
+}
+
+.cardMetric b {
+  color: var(--ir);
+  font-size: 1.05rem;
+}
+
+.dismiss,
+.textBtn,
+.inlineLink {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--lock);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.inlineLink {
+  border: 0;
+  border-bottom: 1px dotted var(--lock);
+  padding: 0;
+  font-size: inherit;
+}
+
+.dismiss:hover,
+.textBtn:hover {
+  border-color: var(--lock);
+}
+
+.inspect {
+  border: 1px solid var(--line);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.inspect p {
+  margin: 0 0 0.25rem;
+}
+
+.scentList {
+  margin: 0.3rem 0 0;
+  padding-left: 1rem;
+  color: var(--mute);
+  font-size: 0.78rem;
+}
+
+.activityHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.toggles {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.feed {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.rail li + li {
-  border-top: 1px solid #2a221c;
+.feed li + li {
+  border-top: 1px solid #2f2620;
 }
 
-.rail button {
+.feed button {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.2rem;
   width: 100%;
   text-align: left;
   background: transparent;
   color: inherit;
   border: 0;
-  padding: 0.55rem 0.1rem;
+  padding: 0.5rem 0.15rem;
   cursor: pointer;
+  font-family: inherit;
 }
 
-.rail button span {
-  color: var(--amber);
-  font-size: 0.68rem;
+.feedTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--paper);
 }
 
-.rail code {
-  font-size: 0.62rem;
-  color: #d9cbb4;
+/* Names the box or cell the row is about, so a won and a lost line in the same
+   second read as one race rather than as a contradiction. */
+.subject {
+  color: var(--mute);
+  font-weight: 400;
+}
+
+.decisive .feedTop b .subject {
+  color: var(--paper);
+}
+
+.feedTop em {
+  font-style: normal;
+  color: var(--mute);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.feed small {
+  color: var(--mute);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.feed code {
+  font-size: 0.75rem;
+  color: #e2d5bd;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
+/* Decisive rows are the argument; give them a marker that survives skimming. */
+.decisive {
+  border-left: 3px solid var(--ir);
+  padding-left: 0.4rem;
+  background: rgba(255, 74, 20, 0.06);
+}
+
+.decisive .feedTop b {
+  color: var(--ir);
+}
+
+/* ---------- controls ---------- */
+
 .strip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-  padding: 0.8rem 1.2rem 1rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.7rem 1.4rem 1rem;
+  position: relative;
   z-index: 3;
 }
 
-.strip button {
-  background: #221b16;
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Label states the outcome, sub-label states the mechanism. */
+.action,
+.primaryAction {
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+  background: #241d17;
   color: var(--paper);
   border: 1px solid var(--line);
-  padding: 0.55rem 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.7rem;
+  padding: 0.5rem 0.7rem;
   cursor: pointer;
+  font-family: inherit;
+  max-width: 15rem;
 }
 
-.strip button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.action b,
+.primaryAction b {
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-.strip button:hover:not(:disabled) {
+.action small,
+.primaryAction small {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--mute);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.primaryAction {
+  background: var(--lock);
+  color: #04211f;
   border-color: var(--lock);
 }
 
-.danger {
-  border-color: color-mix(in srgb, var(--ir) 50%, var(--line)) !important;
+.primaryAction small {
+  color: #0a3b37;
 }
 
-.dangerHot {
-  background: var(--ir) !important;
-  color: #1a0702 !important;
-  border-color: var(--ir) !important;
+.action:hover:not(:disabled) {
+  border-color: var(--lock);
+}
+
+.action:disabled,
+.primaryAction:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action:focus-visible,
+.primaryAction:focus-visible,
+.textBtn:focus-visible,
+.dismiss:focus-visible,
+.inlineLink:focus-visible,
+.feed button:focus-visible {
+  outline: 3px solid var(--paper);
+  outline-offset: 2px;
 }
 
 .legend {
-  margin: 0 0 0 auto;
-  font-size: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.78rem;
   color: var(--mute);
+}
+
+.legend i {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.35rem;
+  vertical-align: -0.12rem;
+}
+
+.swatchRunning {
+  background: var(--lock);
+}
+.swatchStopped {
+  border: 2px dashed var(--lock);
+}
+.swatchDead {
+  background: var(--ir);
+}
+.swatchJam {
+  background: #ff8a28;
+}
+.swatchTrail {
+  background: var(--amber);
 }
 
 @keyframes crawl {
@@ -260,28 +783,45 @@
     transform: translateX(0);
   }
   to {
-    transform: translateX(5px);
+    transform: translateX(4px);
   }
 }
 
 @keyframes ping {
   0% {
-    box-shadow: inset 0 0 0 0 rgba(46, 230, 214, 0.8);
+    box-shadow: inset 0 0 0 0 rgba(46, 230, 214, 0.85);
   }
   100% {
     box-shadow: inset 0 0 0 12px transparent;
   }
 }
 
+@media (max-width: 1100px) {
+  .claimBar {
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+  .headerSide {
+    align-items: flex-start;
+    padding-top: 0;
+  }
+  .counters {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+}
+
 @media (max-width: 960px) {
-  .hudTop,
   .stage {
     grid-template-columns: 1fr;
   }
-  .grid {
-    transform: none;
+  .rail {
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
-  .legend {
-    margin-left: 0;
+  .action,
+  .primaryAction {
+    max-width: none;
+    flex: 1 1 13rem;
   }
 }

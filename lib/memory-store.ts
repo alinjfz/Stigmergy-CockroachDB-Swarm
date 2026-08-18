@@ -1,7 +1,16 @@
 import { GRID_HEIGHT, GRID_WIDTH, SEED_PACKAGES } from "./config";
 import { cosine } from "./embed";
+import { recallEnabled } from "./recall";
 import type { Store } from "./store";
-import type { Cell, ClaimResult, FloorEvent, FloorSnapshot, Package, Scent } from "./types";
+import type {
+  Cell,
+  ClaimResult,
+  FloorCounts,
+  FloorEvent,
+  FloorSnapshot,
+  Package,
+  Scent,
+} from "./types";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -78,6 +87,22 @@ export class MemoryStore implements Store {
       livePickers,
       wave: 1,
       store: "memory",
+      counts: await this.counts(warehouseId),
+      recallEnabled: recallEnabled(),
+    };
+  }
+
+  async counts(warehouseId: string): Promise<FloorCounts> {
+    const events = this.events.filter((e) => e.warehouse_id === warehouseId);
+    const since = Date.now() - 30_000;
+    const failed = (e: FloorEvent) => e.event_type === "dead_end" || e.event_type === "jam";
+    return {
+      events: events.length,
+      scents: this.scents.filter((s) => s.warehouse_id === warehouseId).length,
+      deadEnds: events.filter((e) => e.event_type === "dead_end").length,
+      jams: events.filter((e) => e.event_type === "jam").length,
+      failedClaimsRecent: events.filter((e) => failed(e) && Date.parse(e.at) >= since).length,
+      messages: 0,
     };
   }
 
@@ -154,6 +179,31 @@ export class MemoryStore implements Store {
     });
   }
 
+  async addPackage(
+    warehouseId: string,
+    spec: { sku: string; label: string; x: number; y: number; dest_x: number; dest_y: number },
+  ): Promise<Package> {
+    return this.lock(() => {
+      const row: Package = {
+        id: crypto.randomUUID(),
+        warehouse_id: warehouseId,
+        sku: spec.sku,
+        label: spec.label,
+        x: spec.x,
+        y: spec.y,
+        dest_x: spec.dest_x,
+        dest_y: spec.dest_y,
+        status: "waiting",
+        claimed_by: null,
+        claimed_at: null,
+      };
+      this.packages.set(row.id, row);
+      const cell = this.cells.get(this.key(warehouseId, spec.x, spec.y));
+      if (cell) cell.package_id = row.id;
+      return row;
+    });
+  }
+
   async claimPackage(warehouseId: string, packageId: string, pickerId: string): Promise<boolean> {
     return this.lock(() => {
       const pkg = this.packages.get(packageId);
@@ -193,6 +243,22 @@ export class MemoryStore implements Store {
       .sort((a, b) => b.sim - a.sim)
       .slice(0, limit)
       .map((x) => x.s);
+  }
+
+  async hasScentFrom(
+    warehouseId: string,
+    cell: { x: number; y: number },
+    kind: Scent["kind"],
+    pickerId: string,
+  ): Promise<boolean> {
+    return this.scents.some(
+      (s) =>
+        s.warehouse_id === warehouseId &&
+        s.cell_x === cell.x &&
+        s.cell_y === cell.y &&
+        s.kind === kind &&
+        s.picker_id === pickerId,
+    );
   }
 
   async recordEvent(event: Omit<FloorEvent, "id" | "at"> & { at?: string }): Promise<FloorEvent> {
